@@ -1,6 +1,12 @@
-import React, { useState, type FormEvent, type ChangeEvent } from "react";
+import React, {
+  useState,
+  useEffect,
+  type FormEvent,
+  type ChangeEvent,
+} from "react";
 import { useNavigate, Link } from "react-router";
 import { useAuth } from "@contexts/AuthContext";
+import { useToast } from "@contexts/ToastContext";
 import { TermsOfServiceModal } from "@modals/TermsOfServiceModal";
 import { PrivacyPolicyModal } from "@modals/PrivacyPolicyModal";
 import type { LoginFormData, SignUpFormData } from "@app-types";
@@ -15,9 +21,14 @@ export const AuthCard: React.FC<AuthCardProps> = ({
 }) => {
   const navigate = useNavigate();
   const { login, register } = useAuth();
+  const { showToast } = useToast();
 
   const [isSignUp, setIsSignUp] = useState<boolean>(initialMode === "signup");
-  const [hasToggled, setHasToggled] = useState<boolean>(false);
+
+  // Keep state in sync if initialMode prop changes (e.g. browser navigation)
+  useEffect(() => {
+    setIsSignUp(initialMode === "signup");
+  }, [initialMode]);
 
   // Password visibility states
   const [showSignInPassword, setShowSignInPassword] = useState(false);
@@ -64,20 +75,28 @@ export const AuthCard: React.FC<AuthCardProps> = ({
     Partial<Record<keyof SignUpFormData, string>>
   >({});
 
-  const handleToggleMode = (e: React.MouseEvent) => {
-    e.preventDefault();
-    setHasToggled(true);
-    const nextModeIsSignUp = !isSignUp;
-    setIsSignUp(nextModeIsSignUp);
+  const handleSwitchToSignUp = () => {
+    setIsSignUp(true);
     setSignInError("");
     setSignUpError("");
     setUnverifiedEmail("");
+    navigate("/signup", { replace: true });
+  };
 
-    if (nextModeIsSignUp) {
-      navigate("/signup", { replace: true });
-    } else {
-      navigate("/login", { replace: true });
-    }
+  const handleSwitchToSignIn = () => {
+    setIsSignUp(false);
+    setSignInError("");
+    setSignUpError("");
+    setUnverifiedEmail("");
+    navigate("/login", { replace: true });
+  };
+
+  const handleSocialClick = (e: React.MouseEvent, provider: string) => {
+    e.preventDefault();
+    showToast(
+      `${provider} sign-in will be available soon. Please use email.`,
+      "info",
+    );
   };
 
   const validateSignIn = (): boolean => {
@@ -184,22 +203,14 @@ export const AuthCard: React.FC<AuthCardProps> = ({
     }
   };
 
-  const bgAnimationClass = hasToggled
-    ? isSignUp
-      ? "signin"
-      : "signup"
-    : initialMode === "signup"
-      ? "signin"
-      : "signup";
-
   if (requiresVerification) {
     return (
       <div className="auth-card-container">
-        <div className="card" style={{ height: "auto", minHeight: "400px" }}>
-          <div className="p-8 text-center flex flex-col items-center justify-center min-h-[400px]">
-            <div className="inline-flex items-center justify-center w-14 h-14 rounded-full bg-[rgba(212,175,55,0.15)] border border-[rgba(212,175,55,0.3)] mb-4">
+        <div className="container verification-mode">
+          <div className="p-8 text-center flex flex-col items-center justify-center min-h-[440px] w-full">
+            <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-[rgba(212,175,55,0.15)] border border-[rgba(212,175,55,0.3)] mb-4">
               <svg
-                className="w-7 h-7 text-[#D4AF37]"
+                className="w-8 h-8 text-[#D4AF37]"
                 fill="none"
                 stroke="currentColor"
                 viewBox="0 0 24 24"
@@ -212,29 +223,31 @@ export const AuthCard: React.FC<AuthCardProps> = ({
                 />
               </svg>
             </div>
-            <h2 className="text-2xl font-bold text-[#F5E6C8] mb-2">
+            <h2 className="text-2xl font-bold text-[#F5E6C8] mb-2 font-serif">
               Check Your Email
             </h2>
-            <p className="text-[#6B7280] mb-4 text-xs">
+            <p className="text-[#a0a5ad] mb-4 text-sm max-w-sm">
               Account created successfully! We sent a verification link to:
             </p>
-            <p className="text-sm font-semibold text-[#D4AF37] break-all bg-[#171717] border border-[rgba(107,114,128,0.2)] px-4 py-2 rounded-[6px] mb-6">
+            <p className="text-sm font-semibold text-[#D4AF37] break-all bg-[#171717] border border-[rgba(107,114,128,0.25)] px-4 py-2 rounded-lg mb-6">
               {registeredEmail}
             </p>
-            <div className="flex flex-col gap-2.5 w-full max-w-xs">
+            <div className="flex flex-col gap-3 w-full max-w-xs">
               <button
+                type="button"
                 onClick={() => navigate("/resend-verification")}
-                className="btn-primary w-full py-2.5 text-xs font-semibold rounded-[6px]"
+                className="auth-btn w-full"
               >
                 Didn't receive email?
               </button>
               <button
+                type="button"
                 onClick={() => {
                   setRequiresVerification(false);
                   setIsSignUp(false);
                   navigate("/login");
                 }}
-                className="btn-secondary w-full py-2.5 text-xs font-semibold rounded-[6px]"
+                className="ghost-btn w-full"
               >
                 Back to Sign In
               </button>
@@ -247,175 +260,18 @@ export const AuthCard: React.FC<AuthCardProps> = ({
 
   return (
     <div className="auth-card-container">
-      <div className="card">
-        {/* Background animated shapes */}
-        <div className={`card-bg card-bg-1 ${bgAnimationClass}`} />
-        <div className={`card-bg card-bg-2 ${bgAnimationClass}`} />
-
-        {/* Brand Logos on Side Panel */}
-        <div className="logo logo-1 flex items-center gap-3">
-          <div className="w-10 h-10 rounded-[6px] bg-[#171717] flex items-center justify-center border border-[rgba(107,114,128,0.2)] overflow-hidden p-1.5">
-            <img
-              src="/logo/logo-icon.svg"
-              alt="HireDesk Logo"
-              className="w-full h-full object-contain"
-            />
-          </div>
-          <div className="flex flex-col text-left">
-            <span className="text-xl font-extrabold text-[#171717] tracking-tight leading-none">
-              Hire<span className="text-[#171717]/80">Desk</span>
-            </span>
-            <span className="text-[10px] font-extrabold text-[#171717]/70 tracking-widest uppercase mt-1">
-              AI Hiring Platform
-            </span>
-          </div>
-        </div>
-
-        <div className="logo logo-2 flex items-center gap-3">
-          <div className="w-10 h-10 rounded-[6px] bg-[#171717] flex items-center justify-center border border-[rgba(107,114,128,0.2)] overflow-hidden p-1.5">
-            <img
-              src="/logo/logo-icon.svg"
-              alt="HireDesk Logo"
-              className="w-full h-full object-contain"
-            />
-          </div>
-          <div className="flex flex-col text-left">
-            <span className="text-xl font-extrabold text-[#171717] tracking-tight leading-none">
-              Hire<span className="text-[#171717]/80">Desk</span>
-            </span>
-            <span className="text-[10px] font-extrabold text-[#171717]/70 tracking-widest uppercase mt-1">
-              AI Hiring Platform
-            </span>
-          </div>
-        </div>
-
-        {/* Sign In Form */}
-        <div className={`form signin ${!isSignUp ? "active" : ""}`}>
-          <form onSubmit={handleSignInSubmit} noValidate>
-            <h2>Welcome Back</h2>
-
-            <div className="input-group">
-              <input
-                type="email"
-                placeholder="Email Address"
-                value={signInData.email}
-                onChange={(e: ChangeEvent<HTMLInputElement>) =>
-                  setSignInData({ ...signInData, email: e.target.value })
-                }
-                className={signInErrors.email ? "input-error" : ""}
-                required
-              />
-              {signInErrors.email && (
-                <span className="error-text">{signInErrors.email}</span>
-              )}
-            </div>
-
-            <div className="input-group">
-              <div className="input-wrapper">
-                <input
-                  type={showSignInPassword ? "text" : "password"}
-                  placeholder="Password"
-                  value={signInData.password}
-                  onChange={(e: ChangeEvent<HTMLInputElement>) =>
-                    setSignInData({ ...signInData, password: e.target.value })
-                  }
-                  className={signInErrors.password ? "input-error" : ""}
-                  required
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowSignInPassword(!showSignInPassword)}
-                  className="toggle-password-btn"
-                  title={showSignInPassword ? "Hide Password" : "Show Password"}
-                >
-                  {showSignInPassword ? (
-                    <svg
-                      className="w-4 h-4"
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.878 9.878L3 3m6.878 6.878L21 21"
-                      />
-                    </svg>
-                  ) : (
-                    <svg
-                      className="w-4 h-4"
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
-                      />
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"
-                      />
-                    </svg>
-                  )}
-                </button>
-              </div>
-              {signInErrors.password && (
-                <span className="error-text">{signInErrors.password}</span>
-              )}
-            </div>
-
-            <div className="form-footer-links">
-              <Link to="/forgot-password" className="link-btn">
-                Forgot password?
-              </Link>
-              <Link to="/resend-verification" className="link-btn">
-                Verify Email
-              </Link>
-            </div>
-
-            {signInError && (
-              <div className="auth-alert-box">
-                <p>{signInError}</p>
-                {unverifiedEmail && (
-                  <button
-                    type="button"
-                    onClick={() => navigate("/resend-verification")}
-                    className="link-btn mt-1 text-xs underline font-semibold"
-                  >
-                    Resend verification email
-                  </button>
-                )}
-              </div>
-            )}
-
-            <button
-              type="submit"
-              disabled={isSignInLoading}
-              className="auth-btn"
-            >
-              {isSignInLoading ? "SIGNING IN..." : "SIGN IN"}
-            </button>
-
-            <a
-              href="#signup"
-              onClick={handleToggleMode}
-              className="auth-toggle-link"
-            >
-              Don't have an account? <em>Sign up</em>
-            </a>
-          </form>
-        </div>
-
-        {/* Sign Up Form */}
-        <div className={`form signup ${isSignUp ? "active" : ""}`}>
+      <div
+        className={`container ${isSignUp ? "right-panel-active" : ""}`}
+        id="container"
+      >
+        {/* Sign Up Container */}
+        <div className="form-container sign-up-container">
           <form onSubmit={handleSignUpSubmit} noValidate>
-            <h2>Create Account</h2>
+            <h1>Create Account</h1>
+
+            <span className="auth-subtitle">
+              or use your email for registration
+            </span>
 
             <div className="input-group">
               <input
@@ -484,6 +340,7 @@ export const AuthCard: React.FC<AuthCardProps> = ({
                   type="button"
                   onClick={() => setShowSignUpPassword(!showSignUpPassword)}
                   className="toggle-password-btn"
+                  title={showSignUpPassword ? "Hide password" : "Show password"}
                 >
                   {showSignUpPassword ? (
                     <svg
@@ -546,6 +403,9 @@ export const AuthCard: React.FC<AuthCardProps> = ({
                   type="button"
                   onClick={() => setShowConfirmPassword(!showConfirmPassword)}
                   className="toggle-password-btn"
+                  title={
+                    showConfirmPassword ? "Hide password" : "Show password"
+                  }
                 >
                   {showConfirmPassword ? (
                     <svg
@@ -607,7 +467,7 @@ export const AuthCard: React.FC<AuthCardProps> = ({
                 I agree to the{" "}
                 <button
                   type="button"
-                  className="link-btn underline"
+                  className="link-inline"
                   onClick={(e) => {
                     e.preventDefault();
                     setShowTermsModal(true);
@@ -618,7 +478,7 @@ export const AuthCard: React.FC<AuthCardProps> = ({
                 &{" "}
                 <button
                   type="button"
-                  className="link-btn underline"
+                  className="link-inline"
                   onClick={(e) => {
                     e.preventDefault();
                     setShowPrivacyModal(true);
@@ -646,14 +506,206 @@ export const AuthCard: React.FC<AuthCardProps> = ({
               {isSignUpLoading ? "CREATING ACCOUNT..." : "SIGN UP"}
             </button>
 
-            <a
-              href="#signin"
-              onClick={handleToggleMode}
-              className="auth-toggle-link"
-            >
-              Already have an account? <em>Sign in</em>
-            </a>
+            {/* Mobile-only toggle fallback */}
+            <div className="mobile-toggle-wrapper">
+              <span>Already have an account?</span>
+              <button
+                type="button"
+                onClick={handleSwitchToSignIn}
+                className="mobile-toggle-btn"
+              >
+                Sign In
+              </button>
+            </div>
           </form>
+        </div>
+
+        {/* Sign In Container */}
+        <div className="form-container sign-in-container">
+          <form onSubmit={handleSignInSubmit} noValidate>
+            <h1>Sign in</h1>
+
+            <span className="auth-subtitle">or use your account</span>
+
+            <div className="input-group">
+              <input
+                type="email"
+                placeholder="Email"
+                value={signInData.email}
+                onChange={(e: ChangeEvent<HTMLInputElement>) =>
+                  setSignInData({ ...signInData, email: e.target.value })
+                }
+                className={signInErrors.email ? "input-error" : ""}
+                required
+              />
+              {signInErrors.email && (
+                <span className="error-text">{signInErrors.email}</span>
+              )}
+            </div>
+
+            <div className="input-group">
+              <div className="input-wrapper">
+                <input
+                  type={showSignInPassword ? "text" : "password"}
+                  placeholder="Password"
+                  value={signInData.password}
+                  onChange={(e: ChangeEvent<HTMLInputElement>) =>
+                    setSignInData({ ...signInData, password: e.target.value })
+                  }
+                  className={signInErrors.password ? "input-error" : ""}
+                  required
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowSignInPassword(!showSignInPassword)}
+                  className="toggle-password-btn"
+                  title={showSignInPassword ? "Hide password" : "Show password"}
+                >
+                  {showSignInPassword ? (
+                    <svg
+                      className="w-4 h-4"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.878 9.878L3 3m6.878 6.878L21 21"
+                      />
+                    </svg>
+                  ) : (
+                    <svg
+                      className="w-4 h-4"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
+                      />
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"
+                      />
+                    </svg>
+                  )}
+                </button>
+              </div>
+              {signInErrors.password && (
+                <span className="error-text">{signInErrors.password}</span>
+              )}
+            </div>
+
+            <div className="form-helper-links">
+              <Link to="/forgot-password" className="auth-link">
+                Forgot your password?
+              </Link>
+              <Link to="/resend-verification" className="auth-link">
+                Verify Email
+              </Link>
+            </div>
+
+            {signInError && (
+              <div className="auth-alert-box">
+                <p>{signInError}</p>
+                {unverifiedEmail && (
+                  <button
+                    type="button"
+                    onClick={() => navigate("/resend-verification")}
+                    className="link-inline mt-1 text-xs underline font-semibold"
+                  >
+                    Resend verification email
+                  </button>
+                )}
+              </div>
+            )}
+
+            <button
+              type="submit"
+              disabled={isSignInLoading}
+              className="auth-btn"
+            >
+              {isSignInLoading ? "SIGNING IN..." : "SIGN IN"}
+            </button>
+
+            {/* Mobile-only toggle fallback */}
+            <div className="mobile-toggle-wrapper">
+              <span>Don't have an account?</span>
+              <button
+                type="button"
+                onClick={handleSwitchToSignUp}
+                className="mobile-toggle-btn"
+              >
+                Sign Up
+              </button>
+            </div>
+          </form>
+        </div>
+
+        {/* Sliding Overlay Container */}
+        <div className="overlay-container">
+          <div className="overlay">
+            {/* Left Overlay (shown when Sign Up active, clicking switches to Sign In) */}
+            <div className="overlay-panel overlay-left">
+              <div className="overlay-brand">
+                <div className="overlay-logo-box">
+                  <img
+                    src="/logo/logo-icon.svg"
+                    alt="HireDesk Logo"
+                    className="w-full h-full object-contain"
+                  />
+                </div>
+                <span className="overlay-brand-title">HireDesk</span>
+              </div>
+              <h1>Welcome Back!</h1>
+              <p>
+                To keep connected with HireDesk please login with your personal
+                info
+              </p>
+              <button
+                type="button"
+                className="ghost"
+                id="signIn"
+                onClick={handleSwitchToSignIn}
+              >
+                Sign In
+              </button>
+            </div>
+
+            {/* Right Overlay (shown when Sign In active, clicking switches to Sign Up) */}
+            <div className="overlay-panel overlay-right">
+              <div className="overlay-brand">
+                <div className="overlay-logo-box">
+                  <img
+                    src="/logo/logo-icon.svg"
+                    alt="HireDesk Logo"
+                    className="w-full h-full object-contain"
+                  />
+                </div>
+                <span className="overlay-brand-title">HireDesk</span>
+              </div>
+              <h1>Hello, Friend!</h1>
+              <p>
+                Enter your personal details and start your hiring journey with
+                us
+              </p>
+              <button
+                type="button"
+                className="ghost"
+                id="signUp"
+                onClick={handleSwitchToSignUp}
+              >
+                Sign Up
+              </button>
+            </div>
+          </div>
         </div>
       </div>
 
